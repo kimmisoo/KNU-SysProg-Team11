@@ -15,6 +15,6 @@
 * 내 소스를 github로 업데이트 할 때 <br />
     > git add . <br />
     > git commit -am "수정된 내용" <br />
-    > git push origin master
+    > git push origin master 
 
 * git이 없다고 뜰 경우, https://git-scm.com/downloads 에서 다운로드를 받는다.
