@@ -25,6 +25,7 @@ void return_msg(char * msg, int sock);
 void chat_room(char* room_name, int sock);
 void connect_msg(int sock_index);
 void keycontrol(int sig);
+void box(char* start, int leng, int up_down);
 
 typedef struct option
 {
@@ -55,7 +56,7 @@ int main(int argc, char *argv[])
 	act.sa_handler = keycontrol;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0;
-	
+
 	//CTL+C 입력시 시그널 호출.
 	sigaction(SIGINT, &act, 0);
 
@@ -171,21 +172,21 @@ void handle_msg(char* msg, int sock)
 	char sep[3] = "@@";
 	char* str = strtok(msg, sep);
 	int i;
-	
+
 	// 이름 설정 메시지 수신 시.
 	if (strcmp(str, "#setname") == 0)
 	{
 		pthread_mutex_lock(&mutx);
 		set_name(strtok(NULL, sep), sock);
 		pthread_mutex_unlock(&mutx);
-		
+
 		for (int i = 0; i < clnt_cnt; i++)
 		{
 			printf("%d %s %d\n", clnt_socks[i], clnt_name[i], clnt_room[i]);
 		}
 	}
 	// 방 생성 메시지 수신 시.
-	else if(strcmp(str, "#makeroom")==0)
+	else if (strcmp(str, "#makeroom") == 0)
 	{
 		pthread_mutex_lock(&mutx);
 		make_room(strtok(NULL, sep), sock);
@@ -213,7 +214,7 @@ void handle_msg(char* msg, int sock)
 }
 
 /*
-이름 설정 함수. 
+이름 설정 함수.
 입력 : 이름(char*), 소켓 파일 디스크립터(int)
 */
 void set_name(char* name, int sock)
@@ -228,8 +229,8 @@ void set_name(char* name, int sock)
 		}
 	}
 
-strcpy(clnt_name[sock_index], name);
-printf("%s is connected.\n", clnt_name[sock_index]);
+	strcpy(clnt_name[sock_index], name);
+	printf("%s is connected.\n", clnt_name[sock_index]);
 }
 
 /*
@@ -267,7 +268,7 @@ void make_room(char* room_data, int sock)
 	{
 		if (strcmp(room_name, rooms[i]) == 0) // 이미 방이 존재할 때.
 		{
-			if (room_set[i].set_secret == 1) 
+			if (room_set[i].set_secret == 1)
 			{
 				if (!strcmp(room_option, "Y") || !strcmp(room_option, "y")) {
 					if (strcmp(room_set[i].pass_word, room_pass))
@@ -287,7 +288,7 @@ void make_room(char* room_data, int sock)
 						write(sock, "Password Error\n", strlen("PassWord Error\n"));
 						break;
 					}
-					
+
 				}
 			}
 			clnt_room[sock_index] = i;
@@ -340,7 +341,7 @@ void enter_room(char* room_name, int sock)
 	int sock_index;
 	char temp_pass[300];
 	char* temp_str;
-	int i,pass_len;
+	int i, pass_len;
 
 	// 소켓 인덱스 찾기.
 	for (sock_index = 0; sock_index < clnt_cnt; sock_index++)
@@ -360,7 +361,7 @@ void enter_room(char* room_name, int sock)
 			if (room_set[i].set_secret == 1)
 			{
 				write(sock, "Please Password input : ", strlen("Please Password input : "));  //여기 문제.
-				pass_len=read(sock, temp_pass, sizeof(temp_pass));
+				pass_len = read(sock, temp_pass, sizeof(temp_pass));
 				temp_pass[pass_len] = 0;
 				printf("%s\n", temp_pass);
 				if (strcmp(room_set[i].pass_word, temp_pass))
@@ -380,7 +381,7 @@ void enter_room(char* room_name, int sock)
 			connect_msg(sock_index);
 			break;
 		}
-		
+
 		else if (i == room_cnt - 1) // 방이 없을 때. 접속 실패했다고 보내줌.
 		{
 			temp_str = "Can't find a room.\n";
@@ -405,10 +406,14 @@ void enter_room(char* room_name, int sock)
 void chat_room(char* msg, int sock)
 {
 	int sock_index;
-	int i,check=0;
+	int i, check = 0;
 	char* ear_msg;
 	char temp_save[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분
+	char temp_save2[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분 12-14
 	char temp_str[BUF_SIZE + NAME_SIZE + 5];
+	char temp_str2[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분 12-14
+	char *rr;
+	char upper_sbox[50];
 	/*
 	char temp_self_str[200];
 	char temp2_str[BUF_SIZE + NAME_SIZE + 5];
@@ -420,6 +425,7 @@ void chat_room(char* msg, int sock)
 	*/
 
 	memset(temp_str, 0, sizeof(temp_str));
+	memset(temp_str2, 0, sizeof(temp_str2));
 	memset(temp_save, 0, sizeof(temp_save));
 	strcpy(temp_save, msg);
 	ear_msg = strtok(temp_save, " ");
@@ -434,7 +440,7 @@ void chat_room(char* msg, int sock)
 	}
 	if (!strcmp(ear_msg, "/r") == 0) {
 		// 클라이언트가 채팅방을 나갈 경우
-		if (strcmp(msg, "q\n") == 0 || strcmp(msg, "Q\n") == 0) 
+		if (strcmp(msg, "q\n") == 0 || strcmp(msg, "Q\n") == 0)
 		{
 			sprintf(temp_str, "%s go out of a chatroom\n", clnt_name[sock_index]);
 			check = 1; //나갈상태라는것을 체크해둠
@@ -442,23 +448,51 @@ void chat_room(char* msg, int sock)
 		// 클라이언트에게 전송할 [이름]:메시지 문자열 생성.
 		else
 		{
-			/*
-			sprintf(temp2_str, "│[%s] %s", clnt_name[sock_index], msg);
-			sprintf(temp_str, "%s%s%s%s", upper_box, temp2_str, under_box_left, under_tail_left);
-	
-			sprintf(temp2_str, "[%s] %s│", clnt_name[sock_index], msg);
-			sprintf(temp_self_str, "%45s%45s%45s%45s", upper_box, temp2_str, under_box_right, under_tail_right);
-		 	for (i = 0; i < clnt_cnt; i++)
-	                {
-        	                printf("%d : %d\n", clnt_room[i], clnt_room[sock_index]);
-                	        if (clnt_room[i] == clnt_room[sock_index]
-                        	        && i == sock_index)
-                       		{
-                                	write(clnt_socks[i], temp_self_str, strlen(temp_str));
-                       		}	
-                	}
-			*/
-			sprintf(temp_str, "[%s]:%s", clnt_name[sock_index], msg);
+
+			rr = strchr(msg, '\n');
+			*rr = ' ';
+
+			//2016.12.14
+			if (strlen(msg) >= 20)
+			{
+
+				box(upper_sbox, 24, 0);
+				strcat(temp_str2, clnt_name[sock_index]);
+				strcat(temp_str2, upper_sbox);
+
+				for (int k = 0; k <= strlen(msg); k = k + 20)
+				{
+					int j;
+					for (j = 0; j < 20; j++)
+					{
+						if (msg[k + j] == '\0')
+							temp_save2[j] = ' ';
+						else
+							temp_save2[j] = msg[k + j];
+
+					}
+					temp_save2[j] = '\0';
+
+					sprintf(temp_str, "| %s |\n", temp_save2);
+					strcat(temp_str2, temp_str);
+				}
+
+				box(upper_sbox, 23, 1);
+				strcat(temp_str2, upper_sbox);
+			}
+			else
+			{
+				sprintf(temp_str, "| %s|\n", msg);
+				box(upper_sbox, strlen(temp_str) - 1, 0);
+
+				strcat(temp_str2, clnt_name[sock_index]);
+				strcat(temp_str2, upper_sbox);
+				strcat(temp_str2, temp_str);
+
+				box(upper_sbox, strlen(temp_str) - 2, 1);
+				strcat(temp_str2, upper_sbox);
+			}
+			////////////////////2016.12.14
 
 		}
 		// 자기자신이 아니면서 같은 방에 있는(clnt_room[i]가 같은) 클라이언트에게 전송
@@ -468,7 +502,11 @@ void chat_room(char* msg, int sock)
 			if (clnt_room[i] == clnt_room[sock_index]
 				&& i != sock_index)
 			{
-				write(clnt_socks[i], temp_str, strlen(temp_str));
+				if (check == 1)
+					write(clnt_socks[i], temp_str, strlen(temp_str));
+				else
+					write(clnt_socks[i], temp_str2, strlen(temp_str2));
+
 			}
 		}
 	}
@@ -480,7 +518,7 @@ void chat_room(char* msg, int sock)
 		{
 			printf("%d : %d\n", clnt_room[i], clnt_room[sock_index]);
 			if (clnt_room[i] == clnt_room[sock_index]
-				&& i != sock_index && !strcmp(clnt_name[i],ear_msg))
+				&& i != sock_index && !strcmp(clnt_name[i], ear_msg))
 			{
 				ear_msg = strtok(NULL, " ");
 				sprintf(temp_str, "[%s]:%s", clnt_name[sock_index], ear_msg);
@@ -543,7 +581,7 @@ void connect_msg(int sock_index)
 void return_msg(char * msg, int sock)
 {
 	int sock_index;
-	char temp_str[BUF_SIZE+NAME_SIZE+5];
+	char temp_str[BUF_SIZE + NAME_SIZE + 5];
 	printf("%s\n", msg);
 	memset(temp_str, 0, sizeof(temp_str));
 
@@ -562,7 +600,7 @@ void return_msg(char * msg, int sock)
 void keycontrol(int sig)
 {
 	int i;
-	char buf[100]="Server forced termination.\n";
+	char buf[100] = "Server forced termination.\n";
 
 	if (sig == SIGINT)
 		printf("Server forced termination.\n");
@@ -578,5 +616,27 @@ void error_handling(char * msg)
 	fputs(msg, stderr);
 	fputc('\n', stderr);
 	exit(1);
+}
+
+void box(char* start, int leng, int up_down)
+{
+	int z = 0;
+	char* upper_sbox = start;
+
+	if (!up_down)
+		upper_sbox[z++] = '\n';
+	upper_sbox[z++] = '┌';
+
+	for (z; z < leng; z++)
+		upper_sbox[z] = '-';
+	upper_sbox[z++] = '┐';
+	upper_sbox[z++] = '\n';
+	upper_sbox[z++] = '\0';
+
+	if (up_down)
+	{
+		upper_sbox[z - 1] = '\n';
+		upper_sbox[z] = '\0';
+	}
 }
 

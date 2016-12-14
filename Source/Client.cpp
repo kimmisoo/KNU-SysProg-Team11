@@ -22,13 +22,15 @@ void enter_room(int sock);
 void room_msg(int sock);
 void keycontrol(int sig);
 void set_cr_noecho_mode(void);
+void set_noecho_mode(void);
 void tty_mode(int);
+void box(char* start, int leng, int up_down);
 
 // 전역변수
 char name[NAME_SIZE] = "[DEFAULT]";
 char msg[BUF_SIZE];
 int rcv_trigger;
-int check_position=0; 
+int check_position = 0;
 int sock;
 //클라이언트의 상태를 나타내기위한 변수. ex)채팅방에 접속중이다.
 
@@ -79,7 +81,7 @@ int main(int argc, char *argv[])
 	menu(sock);
 
 	pthread_join(rcv_thread, &thread_return);
-	
+
 
 	close(sock);
 	return 0;
@@ -104,29 +106,29 @@ void menu(int sock)
 		tty_mode(1);
 
 
-			switch (/*kbd_msg[0]*/kInput)
-			{
-			case '1':
-				// 새로운 방 생성.
-				make_room(sock);
-				break;
-			case '2':
-				// 방 입장.
-				enter_room(sock);
-				break;
-			case 'q':
-				// 나가기.
-				close(sock);
-				exit(0);
-				break;
-			default:
-				// 이외엔 입력 제대로 하란 메시지 출력
-				//write(sock, kbd_msg, strlen(kbd_msg));
-				printf("Invalid Input\n");	
-				break;
+		switch (/*kbd_msg[0]*/kInput)
+		{
+		case '1':
+			// 새로운 방 생성.
+			make_room(sock);
+			break;
+		case '2':
+			// 방 입장.
+			enter_room(sock);
+			break;
+		case 'q':
+			// 나가기.
+			close(sock);
+			exit(0);
+			break;
+		default:
+			// 이외엔 입력 제대로 하란 메시지 출력
+			//write(sock, kbd_msg, strlen(kbd_msg));
+			printf("Invalid Input\n");
+			break;
 		}
 	}
-		// 이외엔 입력 제대로 하란 메시지 출력
+	// 이외엔 입력 제대로 하란 메시지 출력
 }
 
 /*
@@ -156,8 +158,8 @@ void make_room(int sock)
 	scanf("%s", room_name);
 	getchar();
 	printf("Set_password (Y/N) : ");
-	
-	while(1)
+
+	while (1)
 	{
 		set_cr_noecho_mode();
 		room_option = getchar();
@@ -166,12 +168,12 @@ void make_room(int sock)
 		{
 			printf("Password           : ");
 			scanf("%s", room_pass);
-			sprintf(temp_str, "#makeroom@@%c$$%s&&%s",room_option, room_name, room_pass);
+			sprintf(temp_str, "#makeroom@@%c$$%s&&%s", room_option, room_name, room_pass);
 			break;
 		}
 		else if (room_option == 'N' || room_option == 'n')
 		{
-			sprintf(temp_str, "#makeroom@@%c$$%s",room_option, room_name);
+			sprintf(temp_str, "#makeroom@@%c$$%s", room_option, room_name);
 			break;
 		}
 		else
@@ -204,7 +206,7 @@ void enter_room(int sock)
 {
 	char room_name[NAME_SIZE];
 	char temp_str[NAME_SIZE + CMD_SIZE];
-	
+
 	printf("room's name : ");
 	scanf("%s", room_name);
 	sprintf(temp_str, "#enterroom@@%s", room_name);
@@ -236,19 +238,75 @@ void enter_room(int sock)
 void room_msg(int sock)
 {
 	char full_msg[BUF_SIZE + CMD_SIZE];
+	char temp_save2[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분 12-14
+	char temp_str[BUF_SIZE + NAME_SIZE + 5];
+	char upper_sbox[50];
+	char *rr;
+
+	memset(temp_str, 0, sizeof(temp_str));
 	memset(full_msg, 0, sizeof(full_msg));
+	memset(temp_save2, 0, sizeof(temp_save2));
+	memset(msg, 0, sizeof(msg));
+
+	set_noecho_mode();
 
 	while (1)
 	{
 		fgets(msg, BUF_SIZE, stdin);
+
 		if (!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) //////////////////////
 		{
 			sprintf(full_msg, "#chatroom@@%s", msg);
 			write(sock, full_msg, strlen(full_msg));
+			tty_mode(1);
 			break;
 		}
+
 		sprintf(full_msg, "#chatroom@@%s", msg);
 		write(sock, full_msg, strlen(full_msg));
+
+		///////////////////2016.12.14
+		rr = strchr(msg, '\n');
+		*rr = ' ';
+
+		if (strlen(msg) >= 20)
+		{
+
+			box(upper_sbox, 24, 0);
+			printf("\n%50s", upper_sbox);
+
+			for (int k = 0; k <= strlen(msg); k = k + 20)
+			{
+				int j;
+				for (j = 0; j < 20; j++)
+				{
+					if (msg[k + j] == '\0')
+						temp_save2[j] = ' ';
+					else
+						temp_save2[j] = msg[k + j];
+
+				}
+				temp_save2[j] = '\0';
+
+				sprintf(temp_str, "| %s |\n", temp_save2);
+				printf("%50s", temp_str);
+			}
+			box(upper_sbox, 23, 1);
+			printf("%51s", upper_sbox);
+		}
+		else
+		{
+
+			box(upper_sbox, strlen(msg) + 2, 0);
+			printf("\n%50s", upper_sbox);
+
+			sprintf(temp_str, "| %s|\n", msg);
+			printf("%50s", temp_str);
+
+			box(upper_sbox, strlen(msg) + 2, 1);
+			printf("%51s", upper_sbox);
+		}
+		////////////////////2016.12.14
 	}
 
 	check_position--;
@@ -276,14 +334,14 @@ void * recv_msg(void * arg)   // read thread main
 
 		// 채팅방 입장했는지 못했는지 서버에서 받아서 처리.
 		// rcv_trigger는 서버에서 결과를 받기 전까지 sleep 시키기 위해 만든 변수.
-		
+
 		if (strcmp(name_msg, "Connecting to existing room.\n") == 0
 			|| strcmp(name_msg, "New room is created.\n") == 0)
 		{
 			rcv_trigger = 1;
 		}
-		else if(strcmp(name_msg, "Can't find a room.\n") == 0
-			|| strcmp(name_msg, "Password Error\n") ==0 )
+		else if (strcmp(name_msg, "Can't find a room.\n") == 0
+			|| strcmp(name_msg, "Password Error\n") == 0)
 		{
 			rcv_trigger = 2;
 		}
@@ -293,7 +351,7 @@ void * recv_msg(void * arg)   // read thread main
 			write(sock, password, strlen(password));
 			getchar();
 		}
-			
+
 	}
 	return NULL;
 }
@@ -306,7 +364,7 @@ void keycontrol(int sig)
 
 	if (sig == SIGINT)
 		printf("Client forced termination\n");
-	if (check_position == 0)  
+	if (check_position == 0)
 		exit(1);
 	else if (check_position == 1) //소켓이 만들어졌을때.
 		close(sock);
@@ -327,10 +385,11 @@ void error_handling(char *msg)
 	exit(1);
 }
 
+
 void tty_mode(int how)
 {
 	static struct termios original_mode;
-	if(how == 0)
+	if (how == 0)
 		tcgetattr(0, &original_mode);
 	else
 		tcsetattr(0, TCSANOW, &original_mode);
@@ -346,3 +405,35 @@ void set_cr_noecho_mode()
 	ttystate.c_cc[VMIN] = 1;
 	tcsetattr(0, TCSANOW, &ttystate);
 }
+
+void set_noecho_mode()
+{
+	struct termios ttystate;
+
+	tcgetattr(0, &ttystate);
+	ttystate.c_lflag &= ~ECHO;
+	ttystate.c_cc[VMIN] = 1;
+	tcsetattr(0, TCSANOW, &ttystate);
+}
+
+void box(char* start, int leng, int up_down)
+{
+	int z = 0;
+	char* upper_sbox = start;
+
+	upper_sbox[z++] = '┌';
+
+	for (z; z < leng; z++)
+		upper_sbox[z] = '-';
+	upper_sbox[z++] = '┐';
+	upper_sbox[z++] = '\n';
+	upper_sbox[z++] = '\0';
+
+	if (up_down)
+	{
+		upper_sbox[z - 1] = '\n';
+		upper_sbox[z] = '\0';
+	}
+}
+
+
