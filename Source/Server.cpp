@@ -408,6 +408,7 @@ void chat_room(char* msg, int sock)
 	int sock_index;
 	int i, check = 0;
 	char* ear_msg;
+	char myname[20];
 	char temp_save[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분
 	char temp_save2[BUF_SIZE + NAME_SIZE + 5];  //수정된 부분 12-14
 	char temp_str[BUF_SIZE + NAME_SIZE + 5];
@@ -457,7 +458,7 @@ void chat_room(char* msg, int sock)
 			{
 
 				box(upper_sbox, 24, 0);
-				strcat(temp_str2, clnt_name[sock_index]);
+				sprintf(temp_str2, "[%s]", clnt_name[sock_index]);
 				strcat(temp_str2, upper_sbox);
 
 				for (int k = 0; k <= strlen(msg); k = k + 20)
@@ -485,7 +486,7 @@ void chat_room(char* msg, int sock)
 				sprintf(temp_str, "| %s|\n", msg);
 				box(upper_sbox, strlen(temp_str) - 1, 0);
 
-				strcat(temp_str2, clnt_name[sock_index]);
+				sprintf(temp_str2, "[%s]", clnt_name[sock_index]);
 				strcat(temp_str2, upper_sbox);
 				strcat(temp_str2, temp_str);
 

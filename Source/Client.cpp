@@ -25,6 +25,7 @@ void set_cr_noecho_mode(void);
 void set_noecho_mode(void);
 void tty_mode(int);
 void box(char* start, int leng, int up_down);
+void move_cur(int x, int y);
 
 // 전역변수
 char name[NAME_SIZE] = "[DEFAULT]";
@@ -248,17 +249,20 @@ void room_msg(int sock)
 	memset(temp_save2, 0, sizeof(temp_save2));
 	memset(msg, 0, sizeof(msg));
 
-	set_noecho_mode();
+	//set_noecho_mode();
 
 	while (1)
 	{
+		move_cur(0, 37);
 		fgets(msg, BUF_SIZE, stdin);
+		move_cur(0, 36);
+		printf("                                     \n");
 
 		if (!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) //////////////////////
 		{
 			sprintf(full_msg, "#chatroom@@%s", msg);
 			write(sock, full_msg, strlen(full_msg));
-			tty_mode(1);
+			//tty_mode(1);
 			break;
 		}
 
@@ -435,5 +439,8 @@ void box(char* start, int leng, int up_down)
 		upper_sbox[z] = '\0';
 	}
 }
-
+void move_cur(int x, int y)
+{
+	printf("\033[%dd\033[%dG", y, x);
+}
 
